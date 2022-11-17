@@ -1,8 +1,10 @@
+from xmlrpc.client import boolean
 from flask import Blueprint,render_template,request,flash,redirect,url_for
-from .models import User
+from .models import User,Note
 from werkzeug.security import generate_password_hash,check_password_hash
 from web1 import db
 from flask_login import login_user,login_required,logout_user,current_user
+#from flask.ext.uuid import FlaskUUID
 
 auth=Blueprint('auth',__name__)
 
@@ -11,8 +13,25 @@ def features():
     return render_template('features.html',boolean=True)
 
 @auth.route('/index/',methods=['GET','POST'])
-def home():
+def index():
     return render_template('index.html',boolean=True)
+
+@auth.route('/home/<name>',methods=['GET','POST'])
+@login_required
+def home(name):
+
+    if request.method=='POST':
+        note=request.form.get('Note')
+
+        if len(note) < 1:
+            flash('Note too short!',category='error')
+        else:
+            new_note=Note(data=note,user_id=current_user.id)
+            db.session.add(new_note)
+            db.session.commit()
+            flash('Note successfully added!',category='success')
+            print (new_note)
+    return render_template('home.html',boolean=True)
 
 @auth.route('/responsivecontact/',methods=['GET','POST'])
 def contact():
@@ -26,8 +45,8 @@ def login():
 @auth.route('/logout/')
 @login_required
 def logout():
-    logout_user()
-    return redirect(url_for('views.home'))
+    #logout_user()
+    return render_template('index.html',boolean=True)#redirect(url_for('views.home'))
 
 @auth.route('/signin/',methods=['GET','POST'])
 def signin():
@@ -36,19 +55,21 @@ def signin():
         password=request.form.get('password')
 
         user=User.query.filter_by(email=email).first()
+        print (user.email)
         if user:
             if check_password_hash(user.password,password):
                 flash('Login successful',category='success')
                 login_user(user,remember=True)
-                return redirect(url_for('views.home'))
+                return redirect(url_for('auth.home'),name=user)
             else:
                 flash('Incorrect password',category='error')
+                render_template('login.html',boolean=True)
         else:
-            flash('Email does not exist!')            
+            flash('Email does not exist!',category='error')            
+            return render_template('login.html',boolean=False)
+    return render_template('home.html',boolean=True)
 
-    return "<p>sign in</p>"
-
-@auth.route('/signup',methods=['GETS','POSTS'])
+@auth.route('/signup/',methods=['GET','POST'])
 def signup():
     if request.method=='POST':
         name=request.form.get('name')
@@ -57,12 +78,12 @@ def signup():
         password2=request.form.get('password2')
         
         user=User.query.filter_by(email=email).first()
-
+        print(user)
         if user:
             flash('Email already exist!',category='error')
         elif len(email)<3:
             flash('email must be atleast 2 characters.',category='error') 
-        elif len(name<2):
+        elif len(name)<2:
             flash('first name must be atlest 1 charater.',category='error')
         elif password1!=password2:
             flash('password is not macthing.',category='error')
@@ -74,6 +95,7 @@ def signup():
             db.session.commit()
             flash('Account created!',category='success')
             login_user(user,remember=True)
-            return redirect(url_for('views.home'))
+            return redirect(url_for('auth.home'),user)
+        return render_template('login.html',boolean=False)
 
-    return render_template("signUp.html") 
+    return render_template("home.html") 
